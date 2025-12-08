@@ -1,0 +1,299 @@
+# PowerEye Protocol Documentation
+
+## Overview
+
+The PowerEye Protocol defines the protocols that a device should implement to communicate with the PowerEye Application via MQTT pub/sub channels.
+
+## 1. MQTT Connection Information
+
+### 1.1 Root CA Certificate
+
+```
+rootCA: string
+```
+
+Certificate Authority (CA) root certificate to authenticate a secure SSL/TLS connection.
+
+### 1.2 Broker Information
+
+#### Host
+
+```
+host: string
+```
+
+The IP address or domain name of the MQTT broker.
+
+**Example:**
+
+- `mqtt.powereye.co`
+- `192.168.1.100`
+
+#### Port
+
+```
+port: number
+```
+
+The connection port for the MQTT broker.
+
+**Common Ports:**
+
+- `8883` - MQTT with SSL/TLS
+
+### 1.3 Client Information
+
+#### Prefix Topic
+
+```
+prefixTopic: string
+```
+
+The prefix for all MQTT topics of this device.
+
+**Format:** `{client_id}/{host}/{device_id}`
+
+**Meaning:**
+
+- `client_id`: The client's ID in PowerEye
+- `host`: The broker identifier the device will connect to—meaning the device will connect directly to the `host` via the broker without any other intermediaries.
+- `device_id`: The device's ID
+
+**Example:** `client123/host/PE001`
+
+#### Client Certificate
+
+```
+cert: string
+```
+
+The client's certificate for mutual TLS authentication.
+
+#### Private Key
+
+```
+privateKey: string
+```
+
+The private key corresponding to the client certificate.
+
+#### Username
+
+```
+username: string
+```
+
+The MQTT client username.
+
+#### Password
+
+```
+password: string
+```
+
+The MQTT client password.
+
+### 1.4 MQTT Topics Structure
+
+```
+{prefixTopic}/command/request // Sub: Subscribe to receive commands from the application
+{prefixTopic}/command/response // Pub: Publish command responses to the application
+
+{prefixTopic}/value // Pub: Publish all read data from the device in a packet to the application
+{prefixTopic}/value/ack // Sub: Subscribe to receive the last data recorded on the application
+
+{prefixTopic}/param/{paramName} // Pub: Publish data changes for a single parameter to the application
+
+```
+
+---
+
+## 2. MQTT Protocol (Pub/Sub channels)
+
+This section describes the topics and message formats that the device supports.
+
+### 2.1 Write Request
+
+Purpose: receive a write command from the application, execute the write operation, and respond with the result to the application.
+
+- Request channel (subscribe): `{prefixTopic}/write/request`
+- Response channel (publish): `{prefixTopic}/write/response`
+- The request/response topics will use `QoS=2` and `retain=false`.
+
+Example request data format:
+
+```json
+{
+  "requestId": "string",
+  "data": { "param": "Temperature", "value": 32.6 }
+}
+```
+
+Example successful response format:
+
+```json
+{
+  "requestId": "string",
+  "data": {
+    "Temperature": 32.6
+  }
+}
+```
+
+Example failed response format:
+
+```json
+{
+  "requestId": "string",
+  "error": "string"
+}
+```
+
+- The `requestId` in a response MUST exactly match the `requestId` of the originating request, enabling clients to reliably correlate responses with their requests.
+
+### 2.2 Read Request
+
+Purpose: receive a read command from the application, read the current value, and return it to the application.
+
+- Request topic (subscribe): `{prefixTopic}/read/request`
+- Response topic (publish): `{prefixTopic}/read/response`
+- The request/response topics will use `QoS=2` and `retain=false`.
+
+Example request format:
+
+```json
+{
+  "requestId": "string",
+  "data": { "params": ["Temperature", "Humidity"] }
+}
+```
+
+Example response format:
+
+```json
+{
+  "requestId": "string",
+  "data": {
+    "time": 1765177373000, // Timestamp in milliseconds
+    "data": {
+      "Temperature": 33.5,
+      "Humidity": 66.9
+    }
+  }
+}
+```
+
+Example failed response format:
+
+```json
+{
+  "requestId": "string",
+  "error": "string"
+}
+```
+
+- The `requestId` in a response MUST exactly match the `requestId` of the originating request, enabling clients to reliably correlate responses with their requests.
+
+### 2.3 Data Synchronization
+
+Purpose: synchronize data from the device to the application.
+
+#### 2.3.1 Value Ack
+
+Purpose: to know the current data stored by the application to perform the latest data synchronization.
+
+- Value ack topic (subscribe): `{prefixTopic}/value/ack`
+
+- The value ack topic will use `QoS=2` and `retain=true`.
+
+- Example of received data
+
+```json
+{
+  "time": 1765177373000, // Timestamp in milliseconds
+  "id": 0 // Unique identifier of latest data
+}
+```
+
+- When the application has no data, it will send a value of `"0"` in this command.
+
+#### 2.3.2 Value
+
+Purpose: synchronize data to the application.
+
+- Data channel (publish): `{prefixTopic}/value`
+
+- The data topic will use QoS 2 and retain=true.
+
+Example of data sent:
+
+```json
+[{
+  {
+    "id": 0, // Unique identifier of the record created by the device for synchronization — may be a string or a number
+    "time": 1765177373000, // Timestamp in milliseconds
+    "data": {
+      "Temperature": 33.5,
+      "Humidity": 66.9
+    }
+  },
+  {
+    "id": 1,
+    "time": 1765177375000,
+    "data": {
+      "Temperature": 33.5,
+      "Humidity": 66.9
+    }
+  }
+}]
+```
+
+- The value in the payload is an array of reading values sorted in ascending order by time; **the last value** will be used as a reference to be sent back in value/ack.
+
+### 2.4 Parameter update
+
+Purpose: update the latest value from the device to the application.
+
+- Parameter data topic (publish): `{prefixTopic}/param/{param}`
+
+- `{param}` is the name of the read parameter (e.g., `Temperature`, `Humidity`...). These parameters are defined by the device and declared in the application.
+
+- The parameter data topic uses `QoS=0` or `Qos=1` and `retain=true`.
+
+Example of updating temperature at a specific time:
+
+`{prefixTopic}/param/Temperature`
+
+```json
+{
+  "time": 1765177373000, // Timestamp in milliseconds
+  "value": 26.9
+}
+```
+
+---
+
+## 3. Implementation Guide
+
+### Support control device
+
+- MUST implement the `Write Request` (see Section 2.1).
+
+### Simple active-reading device (event-driven telemetry)
+
+- Implement parameter updates using `{prefixTopic}/param/{param}` to publish single-parameter changes as they occur.
+- Other APIs are optional and may be ignored.
+
+### Simple passive-reading device (on-demand)
+
+- MUST implement `Read Request` (see Section 2.1).
+- Other APIs are optional and may be ignored.
+
+### Historic-data device (historical data synchronization)
+
+- Implement `Value` and `Value Ack` (`{prefixTopic}/value` and `{prefixTopic}/value/ack`).
+- Device SHOULD subscribe to `{prefixTopic}/value/ack` and reconcile the last acknowledged `id`/`time` before publishing historical batches to `{prefixTopic}/value`.
+- When publishing historical data, send an ordered array of records (ascending by `time`) so the application can process them sequentially.
+
+**Version:** 0.9.0+12  
+**Last Updated:** December 8, 2025
