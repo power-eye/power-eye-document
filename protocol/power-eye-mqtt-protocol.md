@@ -96,6 +96,8 @@ The MQTT client password.
 ### 1.4 MQTT Topics Structure
 
 ```
+{prefixTopic}/status // Will Topic
+
 {prefixTopic}/command/request // Sub: Subscribe to receive commands from the application
 {prefixTopic}/command/response // Pub: Publish command responses to the application
 
@@ -108,11 +110,32 @@ The MQTT client password.
 
 ---
 
-## 2. MQTT Protocol (Pub/Sub channels)
+## 2. MQTT Commands (Pub/Sub channels)
 
 This section describes the topics and message formats that the device supports.
 
-### 2.1 Write Request
+### 2.1 Status
+
+Purpose: Provide a compact device presence indicator using MQTT Last Will and Testament (LWT).
+
+Topic: `{prefixTopic}/status` — device publishes and sets LWT on this topic.
+
+Behavior:
+
+- When connecting the device MUST set an LWT on `{prefixTopic}/status` with payload `"offline"`, `QoS=1`, and `retain=true`.
+- Immediately after a successful connection the device MUST publish `"online"` to `{prefixTopic}/status` with `QoS=1` and `retain=true`.
+- On graceful disconnect the device SHOULD publish `"offline"` before disconnecting. On ungraceful disconnect the broker will publish the LWT (`"offline"`).
+
+Payload: Always a simple string: either `"online"` or `"offline"`. Devices MUST NOT publish other payload formats on this topic.
+
+Examples:
+
+- LWT (set on connect): topic `{prefixTopic}/status`, payload: `offline`, qos: 1, retain: true
+- On connect publish: topic `{prefixTopic}/status`, payload: `online`, qos: 1, retain: true
+
+Recommendation: Use `QoS=1` and `retain=true` so the latest device state is available to subscribers.
+
+### 2.2 Write Request
 
 Purpose: receive a write command from the application, execute the write operation, and respond with the result to the application.
 
@@ -151,7 +174,7 @@ Example failed response format:
 
 - The `requestId` in a response MUST exactly match the `requestId` of the originating request, enabling clients to reliably correlate responses with their requests.
 
-### 2.2 Read Request
+### 2.3 Read Request
 
 Purpose: receive a read command from the application, read the current value, and return it to the application.
 
@@ -194,11 +217,11 @@ Example failed response format:
 
 - The `requestId` in a response MUST exactly match the `requestId` of the originating request, enabling clients to reliably correlate responses with their requests.
 
-### 2.3 Data Synchronization
+### 2.4 Data Synchronization
 
 Purpose: synchronize data from the device to the application.
 
-#### 2.3.1 Value Ack
+#### 2.4.1 Value Ack
 
 Purpose: to know the current data stored by the application to perform the latest data synchronization.
 
@@ -217,7 +240,7 @@ Purpose: to know the current data stored by the application to perform the lates
 
 - When the application has no data, it will send a value of `"0"` in this command.
 
-#### 2.3.2 Value
+#### 2.4.2 Value
 
 Purpose: synchronize data to the application.
 
@@ -250,7 +273,7 @@ Example of data sent:
 
 - The value in the payload is an array of reading values sorted in ascending order by time; **the last value** will be used as a reference to be sent back in value/ack.
 
-### 2.4 Parameter update
+### 2.5 Parameter update
 
 Purpose: update the latest value from the device to the application.
 
@@ -295,5 +318,13 @@ Example of updating temperature at a specific time:
 - Device SHOULD subscribe to `{prefixTopic}/value/ack` and reconcile the last acknowledged `id`/`time` before publishing historical batches to `{prefixTopic}/value`.
 - When publishing historical data, send an ordered array of records (ascending by `time`) so the application can process them sequentially.
 
-**Version:** 0.9.0+12  
-**Last Updated:** December 8, 2025
+---
+
+---
+
+**Version:** 0.0.2  
+**Last Updated:** December 10, 2025
+
+Changed
+
+- Add `2.1 Status` presence topic using LWT; payload restricted to `"online"` / `"offline"`.
