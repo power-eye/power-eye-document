@@ -98,8 +98,8 @@ The MQTT client password.
 ```
 {prefixTopic}/status // Will Topic
 
-{prefixTopic}/command/request // Sub: Subscribe to receive commands from the application
-{prefixTopic}/command/response // Pub: Publish command responses to the application
+{prefixTopic}/command/request/{requestId} // Sub: Subscribe to receive commands from the application
+{prefixTopic}/command/response/{requestId} // Pub: Publish command responses to the application
 
 {prefixTopic}/value // Pub: Publish all read data from the device in a packet to the application
 {prefixTopic}/value/ack // Sub: Subscribe to receive the last data recorded on the application
@@ -139,8 +139,8 @@ Recommendation: Use `QoS=1` and `retain=true` so the latest device state is avai
 
 Purpose: receive a write command from the application, execute the write operation, and respond with the result to the application.
 
-- Request channel (subscribe): `{prefixTopic}/write/request`
-- Response channel (publish): `{prefixTopic}/write/response`
+- Request channel (subscribe): `{prefixTopic}/write/request/{requestId}`
+- Response channel (publish): `{prefixTopic}/write/response/{requestId}`
 - The request/response topics will use `QoS=2` and `retain=false`.
 
 Example request data format:
@@ -172,14 +172,14 @@ Example failed response format:
 }
 ```
 
-- The `requestId` in a response MUST exactly match the `requestId` of the originating request, enabling clients to reliably correlate responses with their requests.
+- The `requestId` in topics, payload of request and response MUST exactly the same, enabling clients to reliably correlate responses with their requests.
 
 ### 2.3 Read Request
 
 Purpose: receive a read command from the application, read the current value, and return it to the application.
 
-- Request topic (subscribe): `{prefixTopic}/read/request`
-- Response topic (publish): `{prefixTopic}/read/response`
+- Request topic (subscribe): `{prefixTopic}/read/request/{requestId}`
+- Response topic (publish): `{prefixTopic}/read/response/{requestId}`
 - The request/response topics will use `QoS=2` and `retain=false`.
 
 Example request format:
@@ -215,7 +215,7 @@ Example failed response format:
 }
 ```
 
-- The `requestId` in a response MUST exactly match the `requestId` of the originating request, enabling clients to reliably correlate responses with their requests.
+- The `requestId` in topics, payload of request and response MUST exactly the same, enabling clients to reliably correlate responses with their requests.
 
 ### 2.4 Data Synchronization
 
@@ -323,8 +323,9 @@ Example of updating temperature at a specific time:
 ---
 
 **Version:** 0.0.2  
-**Last Updated:** December 10, 2025
+**Last Updated:** December 12, 2025
 
 Changed
 
 - Add `2.1 Status` presence topic using LWT; payload restricted to `"online"` / `"offline"`.
+- Update `2.2 Write request` and `2.3 Read request`: add `requestId` as last component of request and response channel
