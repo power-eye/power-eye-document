@@ -197,7 +197,7 @@ Example response format:
 {
   "requestId": "string",
   "data": {
-    "time": 1765177373000, // Timestamp in milliseconds
+    "time": 1765177373000, // Timestamp in milliseconds - this field is optional
     "data": {
       "Temperature": 33.5,
       "Humidity": 66.9
@@ -219,15 +219,15 @@ Example failed response format:
 
 ### 2.4 Data Synchronization
 
-Purpose: synchronize data from the device to the application.
+Purpose: synchronize data from the device to the application
 
-#### 2.4.1 Value Ack
+#### 2.4.1 Latest value
 
 Purpose: to know the current data stored by the application to perform the latest data synchronization.
 
-- Value ack topic (subscribe): `{prefixTopic}/value/ack`
+- Latest value topic (subscribe): `{prefixTopic}/values/latest`
 
-- The value ack topic will use `QoS=2` and `retain=true`.
+- The latest value topic will use `QoS=2` and `retain=true`.
 
 - Example of received data
 
@@ -240,21 +240,21 @@ Purpose: to know the current data stored by the application to perform the lates
 
 - When the application has no data, it will send a value of `"0"` in this command.
 
-#### 2.4.2 Value
+#### 2.4.2 Values
 
 Purpose: synchronize data to the application.
 
-- Data channel (publish): `{prefixTopic}/value`
+- Data channel (publish): `{prefixTopic}/values`
 
 - The data topic will use QoS 2 and retain=true.
 
 Example of data sent:
 
 ```json
-[{
+[
   {
     "id": 0, // Unique identifier of the record created by the device for synchronization — may be a string or a number
-    "time": 1765177373000, // Timestamp in milliseconds
+    "time": 1765177373000, // Timestamp in milliseconds - this field is required
     "data": {
       "Temperature": 33.5,
       "Humidity": 66.9
@@ -268,10 +268,30 @@ Example of data sent:
       "Humidity": 66.9
     }
   }
-}]
+]
 ```
 
 - The value in the payload is an array of reading values sorted in ascending order by time; **the last value** will be used as a reference to be sent back in value/ack.
+
+#### 2.5 Value update
+
+Purpose: store current value to application
+
+- Data channel (publish): `{prefixTopic}/value`
+
+- The data topic will use QoS 2 and retain=true.
+
+Example of data sent:
+
+```json
+{
+  "time": 1765177373000, // Timestamp in milliseconds - this field is optional
+  "data": {
+    "Temperature": 33.5,
+    "Humidity": 66.9
+  }
+}
+```
 
 ### 2.5 Parameter update
 
@@ -289,7 +309,7 @@ Example of updating temperature at a specific time:
 
 ```json
 {
-  "time": 1765177373000, // Timestamp in milliseconds
+  "time": 1765177373000, // Timestamp in milliseconds - this field is optional
   "value": 26.9
 }
 ```
@@ -304,7 +324,9 @@ Example of updating temperature at a specific time:
 
 ### Simple active-reading device (event-driven telemetry)
 
-- Implement parameter updates using `{prefixTopic}/param/{param}` to publish single-parameter changes as they occur.
+- Device can choose to implement option 1 or 2 or both:
+  1. Implement parameter update using `{prefixTopic}/param/{param}` to publish single-parameter changes as they occur. The application will cache the value and store it periodically as defined in the app configuration.
+  2. Implement value update using `{prefixTopic}/value` to store value in application
 - Other APIs are optional and may be ignored.
 
 ### Simple passive-reading device (on-demand)
@@ -314,18 +336,13 @@ Example of updating temperature at a specific time:
 
 ### Historic-data device (historical data synchronization)
 
-- Implement `Value` and `Value Ack` (`{prefixTopic}/value` and `{prefixTopic}/value/ack`).
-- Device SHOULD subscribe to `{prefixTopic}/value/ack` and reconcile the last acknowledged `id`/`time` before publishing historical batches to `{prefixTopic}/value`.
+- Implement `Values` and `Latest value` (`{prefixTopic}/values` and `{prefixTopic}/values/latest`).
+- Device SHOULD subscribe to `{prefixTopic}/values/latest` and reconcile the last acknowledged `id`/`time` before publishing historical batches to `{prefixTopic}/values`.
 - When publishing historical data, send an ordered array of records (ascending by `time`) so the application can process them sequentially.
 
 ---
 
 ---
 
-**Version:** 0.0.2  
-**Last Updated:** December 12, 2025
-
-Changed
-
-- Add `2.1 Status` presence topic using LWT; payload restricted to `"online"` / `"offline"`.
-- Update `2.2 Write request` and `2.3 Read request`: add `requestId` as last component of request and response channel
+**Version:** 0.0.3  
+**Last Updated:** December 15, 2025
