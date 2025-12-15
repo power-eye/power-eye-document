@@ -101,9 +101,10 @@ The MQTT client password.
 {prefixTopic}/command/request/{requestId} // Sub: Subscribe to receive commands from the application
 {prefixTopic}/command/response/{requestId} // Pub: Publish command responses to the application
 
-{prefixTopic}/value // Pub: Publish all read data from the device in a packet to the application
-{prefixTopic}/value/ack // Sub: Subscribe to receive the last data recorded on the application
+{prefixTopic}/values // Pub: Publish all read data from the device in a packet to the application
+{prefixTopic}/values/latest // Sub: Subscribe to receive the last data recorded on the application
 
+{prefixTopic}/value // Pub: Publish latest value from the device in a packet to application
 {prefixTopic}/param/{paramName} // Pub: Publish data changes for a single parameter to the application
 
 ```
